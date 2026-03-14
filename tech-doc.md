@@ -5,19 +5,27 @@
 This document decomposes implementation into loosely coupled parts so specialized agents (frontend, backend, data, LLM, infra) can work in parallel with minimal blocking.
 
 Core product behavior:
-1. User drops map pin + sets radius.
-2. System builds a region context from geospatial data sources.
-3. User starts a chat and can ask follow-up questions about the same region.
-4. Assistant responses are streamed continuously to the UI.
-5. Each assistant turn is still constrained to structured output at completion.
-6. Chat history is persisted in browser `sessionStorage` (no auth, no DB).
+1. User navigates to root URL and sees a landing page with product information.
+2. At the top of the landing page, user enters a question (required) and optionally an address (autocompleted via Google Geocoding API).
+3. On submit, user is routed to the main map page with the side chat panel.
+   - If an address was provided, the map centers on the geocoded coordinates and auto-creates a region context.
+   - If no address was provided, the map opens at a default view and the user drops a pin manually.
+4. User drops/adjusts map pin + sets radius (or accepts auto-placed pin from geocoded address).
+5. System builds a region context from geospatial data sources.
+6. User starts a chat (pre-populated with the landing page question if applicable) and can ask follow-up questions about the same region.
+7. Assistant responses are streamed continuously to the UI.
+8. Each assistant turn is still constrained to structured output at completion.
+9. Chat history is persisted in browser `sessionStorage` (no auth, no DB).
 
 ## 2) Product Boundaries (MVP)
 
 ### In scope
-- Single-page app with MapLibre GL.
+- Landing page at root URL with product info, question input, and optional address autocomplete.
+- Google Geocoding / Places Autocomplete API integration for the landing page address field.
+- Client-side routing: landing page (`/`) and map page (`/map`).
+- Single-page app with MapLibre GL (map page).
 - OSM vector tile map rendering (explicitly configured style/source).
-- Pin + radius + region context creation.
+- Pin + radius + region context creation (manual pin drop or auto-placed from geocoded address).
 - Multi-turn chat for follow-up questions on initial query context.
 - Streaming assistant output to frontend (incremental text/tokens).
 - Final structured assistant payload (`answer`, `reasoning_summary`, `evidence`, `limitations`, `confidence`).
@@ -30,11 +38,11 @@ Core product behavior:
 - Persistent product database (beyond ephemeral Redis cache).
 - Background jobs/queues.
 - Vector DB/RAG over external docs.
-- Full geocoding/search infrastructure.
 
 ## 3) Target Stack
 
-- Frontend: React + TypeScript + Vite + MapLibre GL JS + Tailwind CSS.
+- Frontend: React + TypeScript + Vite + React Router + MapLibre GL JS + Tailwind CSS.
+- Google APIs (frontend-only): Google Maps JavaScript API (Places Autocomplete / Geocoding) for address field on landing page.
 - Backend: Python + FastAPI + Pydantic + `uv` for dependency/runtime management.
 - Cache/state: Redis for ephemeral context and request-level caching.
 - Data source layer: pluggable provider abstraction (`DataSource` base class), with Overpass as first implementation.
@@ -44,15 +52,20 @@ Core product behavior:
 ## 4) System Architecture (Contract-First)
 
 ```text
-Browser SPA
+Browser SPA (React Router)
+  /             -> Landing page (hero + question input + address autocomplete)
+  /map          -> Map page (MapLibre + chat panel)
+
   -> Nginx
-      -> / (frontend static files + MapLibre app)
+      -> / (frontend static files, client-side routing)
       -> /api/* (FastAPI)
               -> Redis (context snapshots + TTL cache)
               -> DataSourceRegistry
                     -> OverpassDataSource (now)
                     -> GooglePlacesDataSource (future)
               -> OpenRouter Chat/Responses
+
+Landing page address field -> Google Geocoding/Places Autocomplete API (client-side, API key restricted)
 ```
 
 Design rule: components communicate through explicit schemas/interfaces; each part can be built against mocks first.
@@ -365,6 +378,7 @@ Responsibilities:
   - `MAP_STYLE_URL`
   - `REDIS_URL`
   - `REDIS_TTL_SECONDS`
+  - `VITE_GOOGLE_MAPS_API_KEY` (build-time, frontend-only, for Places Autocomplete on landing page)
   - provider timeouts/cache TTL
 - Provide VM deployment + verification runbook.
 
@@ -381,22 +395,76 @@ Acceptance criteria:
 - Single-origin setup avoids CORS complexity.
 - Redis connectivity/TTL behavior is validated end-to-end.
 
+## Part F: Landing Page + Entry Flow
+
+Owner profile: frontend/UI agent.
+
+Responsibilities:
+- Build a landing page served at `/` inspired by the Google Maps Platform AI page (https://mapsplatform.google.com/ai/).
+- Implement client-side routing (`/` landing page, `/map` map page) using React Router.
+- Landing page layout (top-to-bottom):
+  1. **Hero prompt section** (top of page, visually prominent):
+     - Headline (e.g., "Ask anything about a neighborhood").
+     - **Question input field** (required) — text input or textarea. Placeholder examples to guide the user (e.g., "How walkable is this area?", "Is this good for families?").
+     - **Address input field** (optional) — uses Google Places Autocomplete (Geocoding API) for type-ahead suggestions. When the user selects a suggestion, the geocoded `lat`/`lon` is captured.
+     - Submit button / Enter key triggers navigation to `/map`.
+  2. **Product info / feature sections** below the hero — concise marketing-style content explaining what GenGeo does (can be static content for MVP).
+- On submit, navigate to `/map` passing state via URL search params or React Router state:
+  - `q` — the user's question text (required).
+  - `lat`, `lon` — geocoded coordinates from address selection (present only if address was provided).
+- Map page behavior on arrival from landing page:
+  - If `lat`/`lon` are present: center map on those coordinates, auto-place pin, auto-create region context (`POST /api/contexts`), and pre-populate the chat input with the question from `q`.
+  - If only `q` is present (no address): open map at default view, prompt user to drop a pin, keep question in chat input ready to send once context exists.
+- Nginx must be configured to serve `index.html` for all client-side routes (SPA fallback).
+
+Google Geocoding / Places Autocomplete integration:
+- Use the Google Maps JavaScript API `places` library with `Autocomplete` widget or `AutocompleteService`.
+- API key loaded from environment variable `VITE_GOOGLE_MAPS_API_KEY` (build-time).
+- Restrict API key to `Maps JavaScript API` and `Places API` with HTTP referrer restrictions.
+- On place selection, extract `geometry.location` (lat/lng) for routing to map page.
+- Graceful fallback if API key is missing or Places API fails: address field remains a plain text input (no autocomplete), and no geocoded coordinates are passed.
+
+Independence strategy:
+- Fully buildable with a placeholder map page; only requires Google API key for autocomplete testing.
+- Landing page content and styling are independent of backend services.
+
+Deliverables:
+- `frontend/src/pages/LandingPage.tsx` — landing page component.
+- `frontend/src/pages/MapPage.tsx` — refactored map + chat page (existing functionality moved here).
+- `frontend/src/components/landing/HeroPrompt.tsx` — hero section with question + address inputs.
+- `frontend/src/components/landing/AddressAutocomplete.tsx` — Google Places Autocomplete wrapper.
+- `frontend/src/router.tsx` — React Router configuration.
+- Updated Nginx config for SPA fallback routing.
+
+Acceptance criteria:
+- Navigating to `/` shows the landing page with hero prompt section and product info.
+- Question field is required; form cannot be submitted without it.
+- Address field shows Google Places autocomplete suggestions when typing (when API key is configured).
+- Submitting the form navigates to `/map` with the correct query params / router state.
+- Map page correctly consumes landing page params: auto-centers if coordinates provided, pre-fills chat with question.
+- Direct navigation to `/map` (without landing page) still works as before (existing behavior preserved).
+- Landing page is responsive and visually polished (modern, clean design with Tailwind CSS).
+
 ## 7) Integration Points and Ordering (No Time Mapping)
 
 Recommended dependency graph:
 1. Part B defines API + SSE + schemas first.
 2. Part A builds UI/chat state against mocks.
-3. Part C builds data abstraction and Overpass provider in parallel.
-4. Part D builds OpenRouter streaming + structured output in parallel.
-5. Part B integrates C and D.
-6. Part E wraps full stack and validates runtime behavior.
+3. Part F builds landing page + routing in parallel with Part A (shared routing layer).
+4. Part C builds data abstraction and Overpass provider in parallel.
+5. Part D builds OpenRouter streaming + structured output in parallel.
+6. Part B integrates C and D.
+7. Part F integrates with Part A (landing page passes params to map page).
+8. Part E wraps full stack and validates runtime behavior (including SPA routing).
 
 Integration checkpoints:
-- Checkpoint 1: A + B (mock contexts and mock SSE stream).
-- Checkpoint 2: B + C (real region context generation, mock LLM stream).
-- Checkpoint 3: B + D (real LLM stream using fixture context).
-- Checkpoint 4: A + B + C + D full multi-turn streaming chat.
-- Checkpoint 5: Full stack via E on target VM.
+- Checkpoint 0: F standalone (landing page renders, form submits, navigates to /map route).
+- Checkpoint 1: A + F (landing page navigates to map page, params consumed correctly).
+- Checkpoint 2: A + B (mock contexts and mock SSE stream).
+- Checkpoint 3: B + C (real region context generation, mock LLM stream).
+- Checkpoint 4: B + D (real LLM stream using fixture context).
+- Checkpoint 5: A + B + C + D full multi-turn streaming chat with landing page entry.
+- Checkpoint 6: Full stack via E on target VM (including SPA fallback routing through Nginx).
 
 ## 8) Cross-Cutting Non-Functional Requirements
 
@@ -433,6 +501,14 @@ project-root/
     Dockerfile
     package.json
     src/
+      router.tsx
+      pages/
+        LandingPage.tsx
+        MapPage.tsx
+      components/
+        landing/
+          HeroPrompt.tsx
+          AddressAutocomplete.tsx
       api/
       chat/
       map/
@@ -465,10 +541,10 @@ project-root/
 
 ## 11) Handoff Summary by Agent Type
 
-- Frontend agent: owns map + multi-turn streaming UI + `sessionStorage` thread persistence.
+- Frontend agent: owns landing page, client-side routing, Google Places Autocomplete integration, map + multi-turn streaming UI + `sessionStorage` thread persistence.
 - Backend agent: owns FastAPI contracts, SSE orchestration, schema enforcement, `uv` dependency management, and Redis context/cache integration.
 - Data/geospatial agent: owns `DataSource` abstraction, Overpass provider, and profile aggregation.
 - LLM agent: owns OpenRouter integration, model config, and structured-output-compliant streamed turns.
-- Infra agent: owns Compose/Nginx/Redis runtime, SSE-safe proxy behavior, and deployment reproducibility.
+- Infra agent: owns Compose/Nginx/Redis runtime, SPA fallback routing, SSE-safe proxy behavior, and deployment reproducibility.
 
 Each part is intentionally decoupled by typed contracts so teams can develop in parallel and merge with low rework risk.

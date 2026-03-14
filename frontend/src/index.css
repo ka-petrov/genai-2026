@@ -1,5 +1,60 @@
 @import "tailwindcss";
 
+/*
+ * ── Design-system tokens ────────────────────────────────────────────────
+ *
+ *  Every colour in the app flows from these custom properties.
+ *  To iterate on the palette, edit this block — all Tailwind utilities
+ *  (bg-surface-base, text-fg, border-panel, etc.) update automatically.
+ */
+@theme {
+  /* surfaces */
+  --color-surface-base: #0a0e1a;
+  --color-surface-raised: #111827;
+  --color-surface-overlay: #1a1d25;
+  --color-surface-sunken: #2a2d35;
+
+  /* borders */
+  --color-border-default: #1e2433;
+  --color-border-subtle: #2a2d35;
+  --color-border-strong: #3a3d45;
+
+  /* foreground / text */
+  --color-fg: #ffffff;
+  --color-fg-secondary: #d1d5db;
+  --color-fg-muted: #9ca3af;
+  --color-fg-faint: #6b7280;
+
+  /* accent */
+  --color-accent: #2563eb;
+  --color-accent-hover: #3b82f6;
+  --color-accent-subtle: rgba(37, 99, 235, 0.10);
+  --color-accent-text: #60a5fa;
+
+  /* gradient endpoints */
+  --color-gradient-from: #60a5fa;
+  --color-gradient-to: #22d3ee;
+
+  /* chat bubbles */
+  --color-bubble-user: #2563eb;
+  --color-bubble-user-text: #ffffff;
+  --color-bubble-assistant: #1e2433;
+  --color-bubble-assistant-text: #e5e7eb;
+
+  /* status */
+  --color-status-success: #22c55e;
+  --color-status-success-subtle: rgba(34, 197, 94, 0.10);
+  --color-status-error: #ef4444;
+  --color-status-error-subtle: rgba(239, 68, 68, 0.10);
+  --color-status-error-text: #fca5a5;
+
+  /* map */
+  --color-map-pin: #ef4444;
+  --color-map-circle-fill: #3b82f6;
+  --color-map-circle-stroke: #2563eb;
+}
+
+/* ── Global reset ──────────────────────────────────────────────────────── */
 html,
 body,
 #root {
@@ -7,24 +62,26 @@ body,
   width: 100%;
   margin: 0;
   padding: 0;
+  background: var(--color-surface-base);
+  color: var(--color-fg);
 }
 
-/* custom scrollbar for chat */
-.chat-messages::-webkit-scrollbar {
-  width: 5px;
+/* ── Scrollbars (dark) ─────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
 }
-.chat-messages::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
 }
-.chat-messages::-webkit-scrollbar-thumb {
-  background-color: #d1d5db;
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-subtle);
   border-radius: 4px;
 }
-.chat-messages::-webkit-scrollbar-thumb:hover {
-  background-color: #9ca3af;
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-border-strong);
 }
 
-/* radius preview label following cursor */
+/* ── Map radius preview label ──────────────────────────────────────────── */
 .radius-label-marker {
   background: rgba(0, 0, 0, 0.72);
   color: #fff;
@@ -37,19 +94,19 @@ body,
   transform: translate(12px, -50%);
 }
 
-/* Landing page — override Google Places Autocomplete dropdown */
+/* ── Google Places Autocomplete dropdown (dark override) ───────────────── */
 .pac-container {
-  background-color: #1a1d25 !important;
-  border: 1px solid #2a2d35 !important;
+  background-color: var(--color-surface-overlay) !important;
+  border: 1px solid var(--color-border-subtle) !important;
   border-radius: 12px !important;
   margin-top: 4px !important;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5) !important;
   font-family: inherit !important;
 }
 .pac-item {
-  border-top: 1px solid #2a2d35 !important;
+  border-top: 1px solid var(--color-border-subtle) !important;
   padding: 8px 12px !important;
-  color: #d1d5db !important;
+  color: var(--color-fg-secondary) !important;
   cursor: pointer !important;
 }
 .pac-item:first-child {
@@ -57,29 +114,14 @@ body,
 }
 .pac-item:hover,
 .pac-item-selected {
-  background-color: #2a2d35 !important;
+  background-color: var(--color-surface-sunken) !important;
 }
 .pac-item-query {
-  color: #e5e7eb !important;
+  color: var(--color-fg) !important;
 }
 .pac-icon {
   filter: invert(0.7);
 }
 .pac-logo::after {
   display: none !important;
-}
-
-/* Landing page scrollbar */
-.landing-page::-webkit-scrollbar {
-  width: 6px;
-}
-.landing-page::-webkit-scrollbar-track {
-  background: transparent;
-}
-.landing-page::-webkit-scrollbar-thumb {
-  background-color: #2a2d35;
-  border-radius: 4px;
-}
-.landing-page::-webkit-scrollbar-thumb:hover {
-  background-color: #3a3d45;
 }

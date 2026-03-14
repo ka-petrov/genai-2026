@@ -192,7 +192,7 @@ export default function MapPage() {
       : undefined);
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full bg-surface-base">
       <div
         className={`relative transition-[width] duration-200 ${
           chatExpanded ? "w-0 overflow-hidden" : "flex-1"
@@ -209,7 +209,7 @@ export default function MapPage() {
       </div>
 
       <aside
-        className={`flex flex-col border-l border-gray-200 transition-[width] duration-200 ${
+        className={`flex flex-col border-l border-border-default transition-[width] duration-200 ${
           chatExpanded ? "flex-1" : "w-[420px]"
         }`}
       >
@@ -226,7 +226,7 @@ export default function MapPage() {
           initialQuestion={pendingQuestion.current ?? undefined}
         />
         {error && (
-          <div className="px-4 py-2 bg-red-50 border-t border-red-200 text-red-700 text-sm">
+          <div className="px-4 py-2 bg-status-error-subtle border-t border-status-error/30 text-status-error-text text-sm">
             {error}
           </div>
         )}

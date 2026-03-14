@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { PinIcon } from "../../ds";
 
 const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as
   | string
@@ -67,25 +68,8 @@ export default function AddressAutocomplete({
 
   return (
     <div className="relative">
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-        <svg
-          className="w-4 h-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-          />
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-          />
-        </svg>
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-muted pointer-events-none">
+        <PinIcon className="w-4 h-4" />
       </div>
       <input
         ref={inputRef}
@@ -96,7 +80,7 @@ export default function AddressAutocomplete({
           onPlaceSelect(null);
         }}
         placeholder="Enter an address (optional)"
-        className="w-full bg-[#2a2d35] border border-[#3a3d45] rounded-xl pl-10 pr-4 py-3 text-sm text-gray-200 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
+        className="w-full bg-surface-sunken border border-border-strong rounded-xl pl-10 pr-4 py-3 text-sm text-fg-secondary placeholder:text-fg-faint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-transparent transition-all"
       />
     </div>
   );

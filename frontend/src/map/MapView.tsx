@@ -4,6 +4,10 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { haversineDistance, createCirclePoints, formatDistance } from "./geo";
 import type { MapInteractionState } from "../types";
 
+function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 const MAP_STYLE =
   (import.meta.env.VITE_MAP_STYLE_URL as string | undefined) ??
   "https://tiles.openfreemap.org/styles/liberty";
@@ -99,18 +103,21 @@ export default function MapView({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, rect.width, rect.height);
 
+    const circleFill = cssVar("--color-map-circle-fill") || "#3b82f6";
+    const circleStroke = cssVar("--color-map-circle-stroke") || "#2563eb";
+
     if (interaction.step === "radius_set") {
       drawCircleOnCanvas(
         { lat: interaction.lat, lon: interaction.lon, radiusM: interaction.radius_m },
-        { fill: "#3b82f6", fillOpacity: 0.15, stroke: "#2563eb", strokeWidth: 2 },
+        { fill: circleFill, fillOpacity: 0.15, stroke: circleStroke, strokeWidth: 2 },
       );
     }
 
     if (previewCircleRef.current && interaction.step === "pin_set") {
       drawCircleOnCanvas(previewCircleRef.current, {
-        fill: "#3b82f6",
+        fill: circleFill,
         fillOpacity: 0.1,
-        stroke: "#3b82f6",
+        stroke: circleFill,
         strokeWidth: 1.5,
         dash: [6, 4],
       });
@@ -247,7 +254,8 @@ export default function MapView({
     }
 
     if (interaction.step === "pin_set" || interaction.step === "radius_set") {
-      markerRef.current = new maplibregl.Marker({ color: "#ef4444" })
+      const pinColor = cssVar("--color-map-pin") || "#ef4444";
+      markerRef.current = new maplibregl.Marker({ color: pinColor })
         .setLngLat([interaction.lon, interaction.lat])
         .addTo(map);
     }
@@ -309,7 +317,7 @@ export default function MapView({
 
       {instruction && (
         <div
-          className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/75 text-white px-5 py-2.5 rounded-full text-sm font-medium shadow-lg pointer-events-none select-none"
+          className="absolute top-4 left-1/2 -translate-x-1/2 bg-surface-base/80 backdrop-blur text-fg px-5 py-2.5 rounded-full text-sm font-medium shadow-lg pointer-events-none select-none border border-border-default"
           style={{ zIndex: 2 }}
         >
           {instruction}
@@ -321,12 +329,12 @@ export default function MapView({
           className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2"
           style={{ zIndex: 2 }}
         >
-          <span className="bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
+          <span className="bg-accent text-fg px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
             {formatDistance(interaction.radius_m)} radius
           </span>
           <button
             onClick={onReset}
-            className="bg-white/90 backdrop-blur text-gray-700 px-4 py-2 rounded-full text-sm font-medium shadow-lg hover:bg-white transition-colors cursor-pointer"
+            className="bg-surface-raised/90 backdrop-blur text-fg-secondary px-4 py-2 rounded-full text-sm font-medium shadow-lg border border-border-default hover:bg-surface-overlay transition-colors cursor-pointer"
           >
             Reset
           </button>

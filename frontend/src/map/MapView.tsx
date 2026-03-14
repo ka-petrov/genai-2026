@@ -9,7 +9,7 @@ function cssVar(name: string): string {
 }
 
 const MAP_STYLE =
-  (import.meta.env.VITE_MAP_STYLE_URL as string | undefined) ??
+  import.meta.env.VITE_MAP_STYLE_URL ??
   "https://tiles.openfreemap.org/styles/liberty";
 
 interface Props {

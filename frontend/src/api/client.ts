@@ -99,8 +99,6 @@ export async function geocodeAutocomplete(
   input: string,
   sessionToken?: string,
 ): Promise<PlacePrediction[]> {
-  if (USE_MOCKS) return mockAutocomplete(input);
-
   const params = new URLSearchParams({ input });
   if (sessionToken) params.set("session_token", sessionToken);
 
@@ -118,8 +116,6 @@ export async function geocodePlaceDetails(
   placeId: string,
   sessionToken?: string,
 ): Promise<PlaceDetails | null> {
-  if (USE_MOCKS) return mockPlaceDetails();
-
   const params = new URLSearchParams({ place_id: placeId });
   if (sessionToken) params.set("session_token", sessionToken);
 
@@ -233,22 +229,3 @@ function pickMockAnswer(query: string): string {
   return `Based on the available data for this area, I can see a well-served neighborhood with 34 restaurants, 12 cafes, 6 supermarkets, and 8 parks within your selected radius. Transit connectivity is supported by 17 bus stops. The area has 5 schools and 23 bike parking spots, suggesting it serves both residential and commuter needs. This gives a generally positive picture of local amenities and services, though a more specific analysis would depend on your particular priorities and needs.`;
 }
 
-async function mockAutocomplete(input: string): Promise<PlacePrediction[]> {
-  await sleep(200);
-  if (input.length < 2) return [];
-  return [
-    { place_id: "mock_1", description: `${input} - Downtown` },
-    { place_id: "mock_2", description: `${input} - Suburbs` },
-    { place_id: "mock_3", description: `${input} - Waterfront` },
-  ];
-}
-
-async function mockPlaceDetails(): Promise<PlaceDetails> {
-  await sleep(200);
-  return {
-    lat: 43.6532,
-    lon: -79.3832,
-    formatted_address: "Toronto, ON, Canada",
-    name: "Toronto",
-  };
-}

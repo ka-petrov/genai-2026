@@ -34,18 +34,25 @@ async def autocomplete(
     if not settings.google_maps_api_key:
         return {"predictions": [], "status": "API_KEY_MISSING"}
 
-    async with httpx.AsyncClient(timeout=5) as client:
-        resp = await client.get(
-            PLACES_AUTOCOMPLETE_URL,
-            params={
-                "input": input,
-                "types": "geocode",
-                "key": settings.google_maps_api_key,
-                **({"sessiontoken": session_token} if session_token else {}),
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(
+                PLACES_AUTOCOMPLETE_URL,
+                params={
+                    "input": input,
+                    "types": "geocode",
+                    "key": settings.google_maps_api_key,
+                    **({"sessiontoken": session_token} if session_token else {}),
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Google Places autocomplete HTTP %s", exc.response.status_code)
+        return {"predictions": [], "status": "UPSTREAM_ERROR"}
+    except httpx.RequestError as exc:
+        logger.warning("Google Places autocomplete network error: %s", exc)
+        return {"predictions": [], "status": "NETWORK_ERROR"}
 
     predictions = [
         {
@@ -67,18 +74,25 @@ async def place_details(
     if not settings.google_maps_api_key:
         return {"result": None, "status": "API_KEY_MISSING"}
 
-    async with httpx.AsyncClient(timeout=5) as client:
-        resp = await client.get(
-            PLACES_DETAILS_URL,
-            params={
-                "place_id": place_id,
-                "fields": "geometry,formatted_address,name",
-                "key": settings.google_maps_api_key,
-                **({"sessiontoken": session_token} if session_token else {}),
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(
+                PLACES_DETAILS_URL,
+                params={
+                    "place_id": place_id,
+                    "fields": "geometry,formatted_address,name",
+                    "key": settings.google_maps_api_key,
+                    **({"sessiontoken": session_token} if session_token else {}),
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Google Places details HTTP %s", exc.response.status_code)
+        return {"result": None, "status": "UPSTREAM_ERROR"}
+    except httpx.RequestError as exc:
+        logger.warning("Google Places details network error: %s", exc)
+        return {"result": None, "status": "NETWORK_ERROR"}
 
     result_raw = data.get("result")
     if not result_raw:

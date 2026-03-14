@@ -32,3 +32,6 @@ dump.rdb
 
 # Examples (local scratch scripts)
 examples/
+
+.cursor
+.claude

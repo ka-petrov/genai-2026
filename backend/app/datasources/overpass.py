@@ -70,7 +70,7 @@ class OverpassDataSource(DataSource):
         return httpx.AsyncClient(timeout=self._timeout)
 
     async def fetch(self, region: RegionSpec) -> SourceFeatureSet:
-        query = build_overpass_query(region)
+        query = build_overpass_query(region, timeout=int(self._timeout) - 5)
         quality_notes: list[str] = []
         client = await self._get_client()
         owns_client = self._external_client is None

@@ -29,9 +29,9 @@ class TestExtractFeaturesFromOverpass:
 
     def test_expected_feature_count(self, sample_overpass_elements):
         features = extract_features_from_overpass(sample_overpass_elements)
-        # 10 valid elements with coords, 2 skipped (no coords / unknown tags),
-        # but landuse:residential matches -> 10 features total
-        assert len(features) == 10
+        # 16 elements total: 14 have coords + matching tags, 2 skipped
+        # (way:998 has no coords, node:999 has unrecognised barrier:fence tag)
+        assert len(features) == 14
 
     def test_cafe_classification(self, sample_overpass_elements):
         features = extract_features_from_overpass(sample_overpass_elements)

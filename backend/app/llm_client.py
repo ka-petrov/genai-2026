@@ -7,6 +7,7 @@ AssistantTurnStructured JSON object (validated downstream by chat_stream.py).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
@@ -22,6 +23,10 @@ logger = logging.getLogger(__name__)
 OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 REQUEST_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
+
+MAX_RETRIES = 3
+RETRY_BACKOFF_BASE = 1.0
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 def _parse_sse_content(line: str) -> str | None:
@@ -83,24 +88,51 @@ async def stream_chat_completion(
         "X-Title": "GenGeo",
     }
 
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        async with client.stream(
-            "POST",
-            OPENROUTER_CHAT_URL,
-            json=payload,
-            headers=headers,
-        ) as response:
-            if response.status_code != 200:
-                body = await response.aread()
-                error_text = body.decode(errors="replace")[:300]
-                logger.error(
-                    "OpenRouter error %d: %s", response.status_code, error_text,
-                )
-                raise RuntimeError(
-                    f"OpenRouter returned {response.status_code}: {error_text}"
-                )
+    last_error: Exception | None = None
 
-            async for line in response.aiter_lines():
-                content = _parse_sse_content(line)
-                if content:
-                    yield content
+    for attempt in range(MAX_RETRIES):
+        try:
+            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+                async with client.stream(
+                    "POST",
+                    OPENROUTER_CHAT_URL,
+                    json=payload,
+                    headers=headers,
+                ) as response:
+                    if response.status_code in RETRYABLE_STATUS_CODES and attempt < MAX_RETRIES - 1:
+                        body = await response.aread()
+                        error_text = body.decode(errors="replace")[:300]
+                        wait = RETRY_BACKOFF_BASE * (2 ** attempt)
+                        logger.warning(
+                            "OpenRouter %d (attempt %d/%d), retrying in %.1fs: %s",
+                            response.status_code, attempt + 1, MAX_RETRIES, wait, error_text,
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+
+                    if response.status_code != 200:
+                        body = await response.aread()
+                        error_text = body.decode(errors="replace")[:300]
+                        logger.error(
+                            "OpenRouter error %d: %s", response.status_code, error_text,
+                        )
+                        raise RuntimeError(
+                            f"OpenRouter returned {response.status_code}: {error_text}"
+                        )
+
+                    async for line in response.aiter_lines():
+                        content = _parse_sse_content(line)
+                        if content:
+                            yield content
+                    return
+        except httpx.RequestError as exc:
+            last_error = exc
+            if attempt < MAX_RETRIES - 1:
+                wait = RETRY_BACKOFF_BASE * (2 ** attempt)
+                logger.warning(
+                    "OpenRouter network error (attempt %d/%d), retrying in %.1fs: %s",
+                    attempt + 1, MAX_RETRIES, wait, exc,
+                )
+                await asyncio.sleep(wait)
+            else:
+                raise RuntimeError(f"OpenRouter request failed after {MAX_RETRIES} attempts") from last_error

@@ -80,6 +80,8 @@ export default function MapPage() {
 
   const landingHandled = useRef(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const [mobileView, setMobileView] = useState<"map" | "chat">("map");
 
   // ---- context creation ----
   const doCreateContext = useCallback(
@@ -155,9 +157,13 @@ export default function MapPage() {
       const messagesForApi = [...thread.messages, userMsg];
       let fullText = "";
 
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       try {
         let rawJson = "";
-        for await (const event of streamChat(ctxId, messagesForApi)) {
+        for await (const event of streamChat(ctxId, messagesForApi, controller.signal)) {
           if (event.event === "response.delta") {
             const delta = (event.data as { delta: string }).delta;
             rawJson += delta;
@@ -180,6 +186,7 @@ export default function MapPage() {
         };
         appendMessage(thread.id, assistantMsg);
       } catch (err) {
+        if (controller.signal.aborted) return;
         console.error("Streaming failed:", err);
         setError("Response failed. Please try again.");
       } finally {
@@ -222,6 +229,7 @@ export default function MapPage() {
   );
 
   const handleReset = useCallback(() => {
+    abortRef.current?.abort();
     resetStore();
   }, [resetStore]);
 
@@ -241,26 +249,52 @@ export default function MapPage() {
       : undefined);
 
   return (
-    <div className="flex h-full bg-surface-base">
+    <div className="flex flex-col md:flex-row h-full bg-surface-base">
+      {/* Mobile tab bar */}
+      <div className="flex md:hidden border-b border-border-default shrink-0">
+        <button
+          onClick={() => setMobileView("map")}
+          className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors cursor-pointer ${
+            mobileView === "map"
+              ? "text-accent border-b-2 border-accent"
+              : "text-fg-muted"
+          }`}
+        >
+          Map
+        </button>
+        <button
+          onClick={() => setMobileView("chat")}
+          className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors cursor-pointer ${
+            mobileView === "chat"
+              ? "text-accent border-b-2 border-accent"
+              : "text-fg-muted"
+          }`}
+        >
+          Chat
+        </button>
+      </div>
+
+      {/* Map panel */}
       <div
         className={`relative transition-[width] duration-200 ${
-          chatExpanded ? "w-0 overflow-hidden" : "flex-1"
-        }`}
+          chatExpanded ? "md:w-0 md:overflow-hidden" : "md:flex-1"
+        } ${mobileView === "map" ? "flex-1" : "hidden"} md:block`}
       >
         <MapView
           interaction={interaction}
           onPinSet={handlePinSet}
           onRadiusSet={handleRadiusSet}
           onReset={handleReset}
-          visible={!chatExpanded}
+          visible={!chatExpanded && (mobileView === "map" || window.innerWidth >= 768)}
           flyToOnMount={flyTo ?? undefined}
         />
       </div>
 
+      {/* Chat panel */}
       <aside
         className={`flex flex-col border-l border-border-default transition-[width] duration-200 ${
-          chatExpanded ? "flex-1" : "w-[420px]"
-        }`}
+          chatExpanded ? "md:flex-1" : "md:w-[420px]"
+        } ${mobileView === "chat" ? "flex-1" : "hidden"} md:flex`}
       >
         <ChatPanel
           expanded={chatExpanded}

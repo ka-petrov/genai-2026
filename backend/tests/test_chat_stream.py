@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 from app.chat_stream import generate_chat_events
 from app.schemas import AssistantTurnStructured
@@ -122,7 +121,7 @@ class TestChatStreamFallback:
         parsed = json.loads(completed[0]["data"])
         assert parsed["answer"] == "This is just plain text."
         assert parsed["confidence"] == "low"
-        assert any("not in expected structured format" in l for l in parsed["limitations"])
+        assert any("not in expected structured format" in line for line in parsed["limitations"])
 
 
 class TestChatStreamError:

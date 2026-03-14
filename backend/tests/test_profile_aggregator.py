@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
 
 from app.datasources.base import NormalizedFeature, SourceFeatureSet
 from app.profile_aggregator import (
     _haversine_m,
     aggregate,
 )
-from app.schemas import RegionSpec
 
 
 class TestHaversine:

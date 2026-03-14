@@ -4,15 +4,28 @@
 
 - A DigitalOcean droplet (or any VM) with Docker and Docker Compose installed.
 - An A record pointing `gengeo.constp.dev` to the droplet's IP address.
-- Port 80 and 443 open in the firewall.
 
-## 1. Install certbot
+## 1. Open firewall ports
+
+Ports 80 and 443 must be reachable **before** requesting a certificate.
+
+```bash
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP (certbot + redirect)
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw enable
+```
+
+If the droplet has a DigitalOcean cloud firewall, also add inbound rules for
+TCP 80 and 443 in the control panel (Networking > Firewalls).
+
+## 2. Install certbot
 
 ```bash
 sudo apt update && sudo apt install -y certbot
 ```
 
-## 2. Obtain the initial TLS certificate
+## 3. Obtain the initial TLS certificate
 
 Port 80 must be free (no nginx running yet).
 
@@ -28,7 +41,7 @@ Create the ACME webroot directory for future renewals:
 sudo mkdir -p /var/www/certbot
 ```
 
-## 3. Clone the repo and configure
+## 4. Clone the repo and configure
 
 ```bash
 git clone <repo-url> /opt/gengeo
@@ -49,7 +62,7 @@ LOG_LEVEL=info
 EOF
 ```
 
-## 4. Build and start all services
+## 5. Build and start all services
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
@@ -61,7 +74,7 @@ Verify:
 curl -s https://gengeo.constp.dev/api/health | python3 -m json.tool
 ```
 
-## 5. Set up automatic certificate renewal
+## 6. Set up automatic certificate renewal
 
 Certbot installs a systemd timer that runs `certbot renew` twice daily. We need
 a deploy hook to reload the nginx container after a successful renewal.
@@ -82,7 +95,7 @@ Test that renewal would work (dry run):
 sudo certbot renew --dry-run
 ```
 
-## 6. Updating the application
+## 7. Updating the application
 
 ```bash
 cd /opt/gengeo
@@ -90,7 +103,7 @@ git pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-## 7. Viewing logs
+## 8. Viewing logs
 
 ```bash
 # All services
@@ -99,20 +112,6 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
 # Single service
 docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f backend
 ```
-
-## Firewall (optional but recommended)
-
-Lock down the droplet to only the ports you need:
-
-```bash
-sudo ufw allow 22/tcp    # SSH
-sudo ufw allow 80/tcp    # HTTP (certbot + redirect)
-sudo ufw allow 443/tcp   # HTTPS
-sudo ufw enable
-```
-
-This ensures Redis (6379) and the backend (8000) are not directly reachable
-from the internet.
 
 ## Local development
 

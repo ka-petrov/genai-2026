@@ -5,7 +5,7 @@ import { createContext, streamChat } from "../api/client";
 import { useAppStore, useActiveThread } from "../store";
 import type { ChatMessage, ChatThread } from "../types";
 
-const DEFAULT_RADIUS = 800;
+const DEFAULT_RADIUS = 500;
 
 /**
  * Extract the "answer" value from a partial JSON stream so the user sees

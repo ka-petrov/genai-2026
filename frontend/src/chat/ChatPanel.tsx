@@ -12,6 +12,7 @@ interface Props {
   contextReady: boolean;
   isCreatingContext: boolean;
   region: RegionSpec | null;
+  initialQuestion?: string;
 }
 
 export default function ChatPanel({
@@ -24,8 +25,9 @@ export default function ChatPanel({
   contextReady,
   isCreatingContext,
   region,
+  initialQuestion,
 }: Props) {
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialQuestion ?? "");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 

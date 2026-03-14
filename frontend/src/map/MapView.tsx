@@ -14,6 +14,7 @@ interface Props {
   onRadiusSet: (lat: number, lon: number, radiusM: number) => void;
   onReset: () => void;
   visible: boolean;
+  flyToOnMount?: { lat: number; lon: number };
 }
 
 export default function MapView({
@@ -22,6 +23,7 @@ export default function MapView({
   onRadiusSet,
   onReset,
   visible,
+  flyToOnMount,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasOverlayRef = useRef<HTMLCanvasElement>(null);
@@ -61,9 +63,9 @@ export default function MapView({
       if (projected.length < 2) return;
 
       ctx.beginPath();
-      ctx.moveTo(projected[0].x, projected[0].y);
+      ctx.moveTo(projected[0]!.x, projected[0]!.y);
       for (let i = 1; i < projected.length; i++) {
-        ctx.lineTo(projected[i].x, projected[i].y);
+        ctx.lineTo(projected[i]!.x, projected[i]!.y);
       }
       ctx.closePath();
 
@@ -124,7 +126,7 @@ export default function MapView({
       style: MAP_STYLE,
       center: [-79.3957, 43.6629],
       zoom: 15,
-      attributionControl: true,
+      attributionControl: false,
     });
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
@@ -270,6 +272,22 @@ export default function MapView({
       if (map.isStyleLoaded()) fly();
       else map.once("load", fly);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- fly to landing-page geocoded location ----
+  useEffect(() => {
+    if (!flyToOnMount) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const fly = () =>
+      map.flyTo({
+        center: [flyToOnMount.lon, flyToOnMount.lat],
+        zoom: 15,
+        duration: 1200,
+      });
+    if (map.isStyleLoaded()) fly();
+    else map.once("load", fly);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

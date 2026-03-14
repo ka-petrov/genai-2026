@@ -7,6 +7,52 @@ import type { ChatMessage, ChatThread } from "../types";
 
 const DEFAULT_RADIUS = 800;
 
+/**
+ * Extract the "answer" value from a partial JSON stream so the user sees
+ * clean text instead of raw JSON during streaming.
+ */
+function extractAnswerPreview(partial: string): string {
+  try {
+    const obj = JSON.parse(partial);
+    if (typeof obj.answer === "string") return obj.answer;
+  } catch {
+    /* partial JSON — fall through */
+  }
+
+  const marker = '"answer"';
+  const idx = partial.indexOf(marker);
+  if (idx === -1) return "";
+
+  const afterKey = partial.substring(idx + marker.length);
+  const colonIdx = afterKey.indexOf(":");
+  if (colonIdx === -1) return "";
+
+  const afterColon = afterKey.substring(colonIdx + 1).trimStart();
+  if (!afterColon.startsWith('"')) return "";
+
+  let result = "";
+  let escaped = false;
+  for (let i = 1; i < afterColon.length; i++) {
+    const ch = afterColon[i];
+    if (escaped) {
+      if (ch === "n") result += "\n";
+      else if (ch === "t") result += "\t";
+      else if (ch === '"') result += '"';
+      else if (ch === "\\") result += "\\";
+      else result += ch;
+      escaped = false;
+    } else if (ch === "\\") {
+      escaped = true;
+    } else if (ch === '"') {
+      return result;
+    } else {
+      result += ch;
+    }
+  }
+
+  return result;
+}
+
 export default function MapPage() {
   const landing = useAppStore((s) => s.landing);
   const clearLanding = useAppStore((s) => s.clearLanding);
@@ -38,12 +84,13 @@ export default function MapPage() {
   // ---- context creation ----
   const doCreateContext = useCallback(
     async (lat: number, lon: number, radiusM: number) => {
-      setInteraction({ step: "radius_set", lat, lon, radius_m: radiusM });
+      const radiusInt = Math.round(radiusM);
+      setInteraction({ step: "radius_set", lat, lon, radius_m: radiusInt });
       setIsCreatingContext(true);
       setError(null);
 
       try {
-        const ctx = await createContext({ lat, lon, radius_m: radiusM });
+        const ctx = await createContext({ lat, lon, radius_m: radiusInt });
         setContextId(ctx.context_id);
 
         const thread: ChatThread = {
@@ -109,20 +156,23 @@ export default function MapPage() {
       let fullText = "";
 
       try {
+        let rawJson = "";
         for await (const event of streamChat(ctxId, messagesForApi)) {
           if (event.event === "response.delta") {
-            const text = (event.data as { text: string }).text;
-            fullText += text;
-            setStreamingText(fullText);
+            const delta = (event.data as { delta: string }).delta;
+            rawJson += delta;
+            const preview = extractAnswerPreview(rawJson);
+            if (preview) setStreamingText(preview);
           } else if (event.event === "response.completed") {
             const data = event.data as { answer?: string };
-            if (data.answer) fullText = data.answer;
+            fullText = data.answer ?? rawJson;
           } else if (event.event === "response.error") {
             throw new Error(
               (event.data as { message?: string }).message ?? "Stream error",
             );
           }
         }
+        if (!fullText) fullText = extractAnswerPreview(rawJson) || rawJson;
 
         const assistantMsg: ChatMessage = {
           role: "assistant",

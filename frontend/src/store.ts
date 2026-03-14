@@ -119,11 +119,20 @@ export const useAppStore = create<AppStore>()(
       name: "gengeo-store",
       storage: {
         getItem: (name) => {
-          const raw = sessionStorage.getItem(name);
-          return raw ? JSON.parse(raw) : null;
+          try {
+            const raw = sessionStorage.getItem(name);
+            return raw ? JSON.parse(raw) : null;
+          } catch {
+            sessionStorage.removeItem(name);
+            return null;
+          }
         },
         setItem: (name, value) => {
-          sessionStorage.setItem(name, JSON.stringify(value));
+          try {
+            sessionStorage.setItem(name, JSON.stringify(value));
+          } catch {
+            /* quota exceeded or private browsing — degrade gracefully */
+          }
         },
         removeItem: (name) => {
           sessionStorage.removeItem(name);

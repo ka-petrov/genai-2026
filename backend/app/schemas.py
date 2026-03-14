@@ -1,20 +1,22 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 # ── Domain objects ──────────────────────────────────────────
 
 
 class RegionSpec(BaseModel):
-    lat: float
-    lon: float
-    radius_m: int
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
+    radius_m: int = Field(..., ge=50, le=50_000)
 
 
 class ChatMessage(BaseModel):
-    role: str
-    content: str
+    role: Literal["user", "assistant", "system"]
+    content: str = Field(..., max_length=10_000)
 
 
 class AssistantTurnStructured(BaseModel):
@@ -46,9 +48,9 @@ class CreateContextResponse(BaseModel):
 
 
 class ChatStreamRequest(BaseModel):
-    context_id: str
-    messages: list[ChatMessage]
-    model_id: str | None = None
+    context_id: str = Field(..., min_length=1, max_length=128)
+    messages: list[ChatMessage] = Field(..., min_length=1, max_length=50)
+    model_id: str | None = Field(None, max_length=128)
 
 
 # ── Error shape ─────────────────────────────────────────────

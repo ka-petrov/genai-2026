@@ -31,18 +31,20 @@ export default function LandingPage() {
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(
     null,
   );
+  const [submitting, setSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const submit = useCallback(() => {
     const q = question.trim();
-    if (!q) return;
+    if (!q || submitting) return;
+    setSubmitting(true);
     setLanding({
       question: q,
       address: address.trim() || null,
       coords,
     });
     void navigate({ to: "/map" });
-  }, [question, address, coords, setLanding, navigate]);
+  }, [question, address, coords, submitting, setLanding, navigate]);
 
   const handleChipClick = (label: string) => {
     setQuestion(label);
@@ -113,10 +115,14 @@ export default function LandingPage() {
                 />
                 <button
                   onClick={submit}
-                  disabled={!question.trim()}
+                  disabled={!question.trim() || submitting}
                   className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-accent text-fg flex items-center justify-center hover:bg-accent-hover disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
-                  <ArrowRightIcon />
+                  {submitting ? (
+                    <div className="w-4 h-4 border-2 border-fg/30 border-t-fg rounded-full animate-spin" />
+                  ) : (
+                    <ArrowRightIcon />
+                  )}
                 </button>
               </div>
 
@@ -130,12 +136,12 @@ export default function LandingPage() {
           </div>
 
           {/* Suggestion chips */}
-          <div className="flex flex-wrap justify-center gap-2 mt-5">
+          <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-2 mt-5 pb-2 md:pb-0 scrollbar-none">
             {SUGGESTION_CHIPS.map((chip) => (
               <button
                 key={chip.label}
                 onClick={() => handleChipClick(chip.label)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-border-subtle bg-surface-raised/80 text-sm text-fg-secondary hover:bg-surface-overlay hover:border-border-strong hover:text-fg transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-border-subtle bg-surface-raised/80 text-sm text-fg-secondary hover:bg-surface-overlay hover:border-border-strong hover:text-fg transition-all cursor-pointer whitespace-nowrap shrink-0"
               >
                 <chip.Icon />
                 {chip.label}

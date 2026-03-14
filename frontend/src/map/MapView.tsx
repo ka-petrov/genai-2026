@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { haversineDistance, createCirclePoints, formatDistance } from "./geo";
@@ -40,6 +40,7 @@ export default function MapView({
     lon: number;
     radiusM: number;
   } | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   const drawCircleOnCanvas = useCallback(
     (
@@ -137,6 +138,7 @@ export default function MapView({
     });
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
+    map.once("load", () => setMapLoaded(true));
     mapRef.current = map;
 
     return () => {
@@ -309,6 +311,16 @@ export default function MapView({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
+
+      {!mapLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-surface-base" style={{ zIndex: 3 }}>
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-3 border-border-subtle border-t-accent rounded-full animate-spin" />
+            <span className="text-sm text-fg-muted">Loading map...</span>
+          </div>
+        </div>
+      )}
+
       <canvas
         ref={canvasOverlayRef}
         className="absolute inset-0 w-full h-full pointer-events-none"
@@ -317,7 +329,7 @@ export default function MapView({
 
       {instruction && (
         <div
-          className="absolute top-4 left-1/2 -translate-x-1/2 bg-surface-base/80 backdrop-blur text-fg px-5 py-2.5 rounded-full text-sm font-medium shadow-lg pointer-events-none select-none border border-border-default"
+          className="absolute top-4 left-1/2 -translate-x-1/2 max-w-[90vw] bg-surface-base/80 backdrop-blur text-fg px-5 py-2.5 rounded-full text-sm font-medium shadow-lg pointer-events-none select-none border border-border-default text-center"
           style={{ zIndex: 2 }}
         >
           {instruction}

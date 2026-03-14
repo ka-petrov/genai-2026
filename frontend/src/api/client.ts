@@ -32,6 +32,7 @@ export async function createContext(
 export async function* streamChat(
   contextId: string,
   messages: ChatMessage[],
+  signal?: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
   if (USE_MOCKS) {
     yield* mockStreamChat(messages);
@@ -42,6 +43,7 @@ export async function* streamChat(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ context_id: contextId, messages }),
+    signal,
   });
 
   if (!res.ok || !res.body)
@@ -68,10 +70,14 @@ export async function* streamChat(
       } else if (line.startsWith("data: ")) {
         dataStr += line.slice(6);
       } else if (line === "" && eventType && dataStr) {
-        yield {
-          event: eventType as StreamEvent["event"],
-          data: JSON.parse(dataStr) as Record<string, unknown>,
-        };
+        try {
+          yield {
+            event: eventType as StreamEvent["event"],
+            data: JSON.parse(dataStr) as Record<string, unknown>,
+          };
+        } catch {
+          console.warn("Malformed SSE payload, skipping:", dataStr);
+        }
         eventType = "";
         dataStr = "";
       }

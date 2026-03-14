@@ -16,6 +16,7 @@ from app.chat_stream import generate_chat_events
 from app.config import settings
 from app.datasources.registry import DataSourceRegistry
 from app.dependencies import get_context_store, get_data_registry
+from app.geocode import router as geocode_router
 from app.llm_client import stream_chat_completion
 from app.profile_aggregator import aggregate
 from app.schemas import (
@@ -43,6 +44,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="GenGeo API", version="0.1.0", lifespan=lifespan)
+app.include_router(geocode_router)
 
 
 def _error_response(

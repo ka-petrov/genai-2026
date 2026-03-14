@@ -59,6 +59,30 @@ class TestClassifyOsmTags:
     def test_tourism_museum(self):
         assert classify_osm_tags({"tourism": "museum"}) == ("amenity", "museum")
 
+    def test_highway_residential_maps_to_street(self):
+        assert classify_osm_tags({"highway": "residential"}) == ("street", "residential")
+
+    def test_highway_primary_maps_to_street(self):
+        assert classify_osm_tags({"highway": "primary"}) == ("street", "primary")
+
+    def test_place_suburb(self):
+        assert classify_osm_tags({"place": "suburb"}) == ("place", "suburb")
+
+    def test_place_neighbourhood(self):
+        assert classify_osm_tags({"place": "neighbourhood"}) == ("place", "neighbourhood")
+
+    def test_natural_water(self):
+        assert classify_osm_tags({"natural": "water"}) == ("natural", "water")
+
+    def test_natural_peak(self):
+        assert classify_osm_tags({"natural": "peak"}) == ("natural", "peak")
+
+    def test_waterway_river(self):
+        assert classify_osm_tags({"waterway": "river"}) == ("waterway", "river")
+
+    def test_waterway_canal(self):
+        assert classify_osm_tags({"waterway": "canal"}) == ("waterway", "canal")
+
     def test_unknown_tag_returns_none(self):
         assert classify_osm_tags({"barrier": "fence"}) is None
 

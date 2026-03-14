@@ -21,7 +21,7 @@ class TestBuildOverpassQuery:
 
     def test_contains_tag_selectors(self, berlin_region: RegionSpec):
         q = build_overpass_query(berlin_region)
-        for tag in ["amenity", "shop", "leisure", "tourism", "public_transport", "railway", "highway", "landuse"]:
+        for tag in ["amenity", "shop", "leisure", "tourism", "public_transport", "railway", "highway", "landuse", "place", "natural", "waterway"]:
             assert f'"{tag}"' in q
 
     def test_requests_center_output(self, berlin_region: RegionSpec):
@@ -54,7 +54,7 @@ class TestOverpassDataSourceFetch:
         result = await ds.fetch(berlin_region)
 
         assert result.source_name == "overpass"
-        assert len(result.features) == 10
+        assert len(result.features) == 14
         assert not result.quality_notes
 
     async def test_source_name(self):
@@ -110,6 +110,10 @@ class TestOverpassDataSourceFetch:
         assert "amenity" in categories
         assert "mobility" in categories
         assert "healthcare" in categories
+        assert "street" in categories
+        assert "place" in categories
+        assert "waterway" in categories
+        assert "natural" in categories
 
     async def test_fetched_at_populated(self, berlin_region: RegionSpec):
         client = httpx.AsyncClient(transport=_mock_transport(SAMPLE_OVERPASS_RESPONSE))

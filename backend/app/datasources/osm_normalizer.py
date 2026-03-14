@@ -9,6 +9,10 @@ Taxonomy categories (from tech-doc §5.4):
   healthcare — clinics, hospitals, pharmacies
   shopping   — supermarkets, convenience stores
   land_use   — residential, commercial, industrial, etc.
+  street     — named roads (motorway through residential)
+  place      — neighbourhoods, suburbs, villages, towns
+  natural    — named water bodies, peaks, woods, beaches
+  waterway   — named rivers, streams, canals
 """
 
 from __future__ import annotations
@@ -91,6 +95,53 @@ HIGHWAY_MAP: dict[str, tuple[str, str]] = {
     "bus_stop": ("mobility", "bus_stop"),
     "crossing": ("mobility", "crossing"),
     "cycleway": ("mobility", "cycleway"),
+    "motorway": ("street", "motorway"),
+    "trunk": ("street", "trunk"),
+    "primary": ("street", "primary"),
+    "secondary": ("street", "secondary"),
+    "tertiary": ("street", "tertiary"),
+    "residential": ("street", "residential"),
+    "living_street": ("street", "living_street"),
+    "pedestrian": ("street", "pedestrian"),
+    "unclassified": ("street", "road"),
+    "service": ("street", "service"),
+}
+
+PLACE_MAP: dict[str, tuple[str, str]] = {
+    "neighbourhood": ("place", "neighbourhood"),
+    "neighborhood": ("place", "neighbourhood"),
+    "suburb": ("place", "suburb"),
+    "quarter": ("place", "quarter"),
+    "village": ("place", "village"),
+    "town": ("place", "town"),
+    "city": ("place", "city"),
+    "hamlet": ("place", "hamlet"),
+    "borough": ("place", "borough"),
+    "city_block": ("place", "city_block"),
+    "square": ("place", "square"),
+    "locality": ("place", "locality"),
+}
+
+NATURAL_MAP: dict[str, tuple[str, str]] = {
+    "water": ("natural", "water"),
+    "wood": ("natural", "wood"),
+    "peak": ("natural", "peak"),
+    "cliff": ("natural", "cliff"),
+    "beach": ("natural", "beach"),
+    "wetland": ("natural", "wetland"),
+    "bay": ("natural", "bay"),
+    "cape": ("natural", "cape"),
+    "spring": ("natural", "spring"),
+    "hill": ("natural", "hill"),
+    "valley": ("natural", "valley"),
+}
+
+WATERWAY_MAP: dict[str, tuple[str, str]] = {
+    "river": ("waterway", "river"),
+    "stream": ("waterway", "stream"),
+    "canal": ("waterway", "canal"),
+    "drain": ("waterway", "drain"),
+    "ditch": ("waterway", "ditch"),
 }
 
 LANDUSE_MAP: dict[str, tuple[str, str]] = {
@@ -113,6 +164,9 @@ _TAG_DISPATCH: list[tuple[str, dict[str, tuple[str, str]]]] = [
     ("public_transport", PUBLIC_TRANSPORT_MAP),
     ("railway", RAILWAY_MAP),
     ("highway", HIGHWAY_MAP),
+    ("place", PLACE_MAP),
+    ("natural", NATURAL_MAP),
+    ("waterway", WATERWAY_MAP),
     ("landuse", LANDUSE_MAP),
 ]
 

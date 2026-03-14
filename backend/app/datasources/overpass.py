@@ -29,6 +29,11 @@ _OVERPASS_QUERY_TEMPLATE = """\
   node["railway"~"station|halt|tram_stop|subway_entrance"](around:{radius},{lat},{lon});
   node["highway"="bus_stop"](around:{radius},{lat},{lon});
   way["landuse"](around:{radius},{lat},{lon});
+  way["highway"]["name"](around:{radius},{lat},{lon});
+  node["place"](around:{radius},{lat},{lon});
+  node["natural"]["name"](around:{radius},{lat},{lon});
+  way["natural"]["name"](around:{radius},{lat},{lon});
+  way["waterway"]["name"](around:{radius},{lat},{lon});
 );
 out center body;
 """

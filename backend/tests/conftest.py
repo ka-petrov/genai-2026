@@ -86,6 +86,31 @@ SAMPLE_OVERPASS_RESPONSE: dict = {
             "lon": 13.405,
             "tags": {"tourism": "museum", "name": "Altes Museum"},
         },
+        {
+            "type": "way",
+            "id": 202,
+            "center": {"lat": 52.5195, "lon": 13.4060},
+            "tags": {"highway": "residential", "name": "Karl-Liebknecht-Straße"},
+        },
+        {
+            "type": "node",
+            "id": 108,
+            "lat": 52.5200,
+            "lon": 13.4050,
+            "tags": {"place": "suburb", "name": "Mitte"},
+        },
+        {
+            "type": "way",
+            "id": 203,
+            "center": {"lat": 52.5130, "lon": 13.3990},
+            "tags": {"waterway": "river", "name": "Spree"},
+        },
+        {
+            "type": "way",
+            "id": 204,
+            "center": {"lat": 52.5180, "lon": 13.4100},
+            "tags": {"natural": "water", "name": "Spreekanal"},
+        },
         # Element with no matching tags — should be skipped
         {
             "type": "node",
@@ -152,6 +177,26 @@ def sample_feature_set() -> SourceFeatureSet:
             feature_id="osm:way:200", source="overpass",
             category="leisure", subcategory="park",
             name="Monbijoupark", lat=52.519, lon=13.407,
+        ),
+        NormalizedFeature(
+            feature_id="osm:way:202", source="overpass",
+            category="street", subcategory="residential",
+            name="Karl-Liebknecht-Straße", lat=52.5195, lon=13.4060,
+        ),
+        NormalizedFeature(
+            feature_id="osm:node:108", source="overpass",
+            category="place", subcategory="suburb",
+            name="Mitte", lat=52.5200, lon=13.4050,
+        ),
+        NormalizedFeature(
+            feature_id="osm:way:203", source="overpass",
+            category="waterway", subcategory="river",
+            name="Spree", lat=52.5130, lon=13.3990,
+        ),
+        NormalizedFeature(
+            feature_id="osm:way:204", source="overpass",
+            category="natural", subcategory="water",
+            name="Spreekanal", lat=52.5180, lon=13.4100,
         ),
     ]
     return SourceFeatureSet(

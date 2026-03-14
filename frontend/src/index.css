@@ -10,3 +10,31 @@ body,
   margin: 0;
   padding: 0;
 }
+
+/* custom scrollbar for chat */
+.chat-messages::-webkit-scrollbar {
+  width: 5px;
+}
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-messages::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 4px;
+}
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+/* radius preview label following cursor */
+.radius-label-marker {
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(12px, -50%);
+}

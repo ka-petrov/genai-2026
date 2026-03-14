@@ -50,6 +50,8 @@ export async function* streamChat(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let eventType = "";
+  let dataStr = "";
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -59,10 +61,8 @@ export async function* streamChat(
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
 
-    let eventType = "";
-    let dataStr = "";
-
-    for (const line of lines) {
+    for (const rawLine of lines) {
+      const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
       if (line.startsWith("event: ")) {
         eventType = line.slice(7).trim();
       } else if (line.startsWith("data: ")) {
@@ -132,7 +132,7 @@ async function* mockStreamChat(
 
   for (const ch of answer) {
     await sleep(12 + Math.random() * 20);
-    yield { event: "response.delta", data: { text: ch } };
+    yield { event: "response.delta", data: { delta: ch } };
   }
 
   yield {

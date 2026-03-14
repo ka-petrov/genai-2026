@@ -1,4 +1,4 @@
-# Technical Implementation Handoff: LLM-Powered Geospatial Neighborhood Analyst
+# Technical Implementation Handoff: LLM-Powered Geospatial Neighborhood Analyst (GenGeo)
 
 ## 1) Purpose and Scope
 

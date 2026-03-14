@@ -229,7 +229,7 @@ export default function MapView({
 
   return (
     <div className="relative w-full h-full">
-      <div ref={containerRef} className="absolute inset-0" />
+      <div ref={containerRef} className="w-full h-full" />
 
       {instruction && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-black/75 text-white px-5 py-2.5 rounded-full text-sm font-medium shadow-lg pointer-events-none select-none">

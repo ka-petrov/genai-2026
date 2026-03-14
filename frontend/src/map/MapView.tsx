@@ -1,17 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { haversineDistance, createCirclePolygon, formatDistance } from "./geo";
+import { haversineDistance, createCirclePoints, formatDistance } from "./geo";
 import type { MapInteractionState } from "../types";
 
 const MAP_STYLE =
   (import.meta.env.VITE_MAP_STYLE_URL as string | undefined) ??
   "https://tiles.openfreemap.org/styles/liberty";
-
-const CIRCLE_SOURCE = "radius-circle";
-const CIRCLE_FILL = "radius-fill";
-const CIRCLE_LINE = "radius-stroke";
-const RADIUS_LABEL = "radius-label";
 
 interface Props {
   interaction: MapInteractionState;
@@ -29,10 +24,96 @@ export default function MapView({
   visible,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasOverlayRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const previewMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const previewCircleAdded = useRef(false);
+
+  const previewCircleRef = useRef<{
+    lat: number;
+    lon: number;
+    radiusM: number;
+  } | null>(null);
+
+  const drawCircleOnCanvas = useCallback(
+    (
+      circle: { lat: number; lon: number; radiusM: number },
+      style: { fill: string; fillOpacity: number; stroke: string; strokeWidth: number; dash?: number[] },
+    ) => {
+      const map = mapRef.current;
+      const canvas = canvasOverlayRef.current;
+      if (!map || !canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      const points = createCirclePoints(circle.lat, circle.lon, circle.radiusM);
+      const projected = points.map((p) => map.project([p[0], p[1]]));
+
+      if (projected.length < 2) return;
+
+      ctx.beginPath();
+      ctx.moveTo(projected[0].x, projected[0].y);
+      for (let i = 1; i < projected.length; i++) {
+        ctx.lineTo(projected[i].x, projected[i].y);
+      }
+      ctx.closePath();
+
+      ctx.fillStyle = style.fill;
+      ctx.globalAlpha = style.fillOpacity;
+      ctx.fill();
+
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth = style.strokeWidth;
+      if (style.dash) {
+        ctx.setLineDash(style.dash);
+      } else {
+        ctx.setLineDash([]);
+      }
+      ctx.stroke();
+    },
+    [],
+  );
+
+  const redrawOverlay = useCallback(() => {
+    const canvas = canvasOverlayRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    if (interaction.step === "radius_set") {
+      drawCircleOnCanvas(
+        { lat: interaction.lat, lon: interaction.lon, radiusM: interaction.radius_m },
+        { fill: "#3b82f6", fillOpacity: 0.15, stroke: "#2563eb", strokeWidth: 2 },
+      );
+    }
+
+    if (previewCircleRef.current && interaction.step === "pin_set") {
+      drawCircleOnCanvas(previewCircleRef.current, {
+        fill: "#3b82f6",
+        fillOpacity: 0.1,
+        stroke: "#3b82f6",
+        strokeWidth: 1.5,
+        dash: [6, 4],
+      });
+    }
+  }, [interaction, drawCircleOnCanvas]);
 
   // ---- initialize map ----
   useEffect(() => {
@@ -41,8 +122,8 @@ export default function MapView({
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
-      center: [13.4, 52.52],
-      zoom: 13,
+      center: [-79.3957, 43.6629],
+      zoom: 15,
       attributionControl: true,
     });
 
@@ -55,12 +136,43 @@ export default function MapView({
     };
   }, []);
 
+  // ---- redraw overlay on map move/zoom ----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const handler = () => redrawOverlay();
+    map.on("move", handler);
+    map.on("zoom", handler);
+    map.on("resize", handler);
+    return () => {
+      map.off("move", handler);
+      map.off("zoom", handler);
+      map.off("resize", handler);
+    };
+  }, [redrawOverlay]);
+
   // ---- resize on visibility toggle ----
   useEffect(() => {
     if (visible) {
-      setTimeout(() => mapRef.current?.resize(), 0);
+      setTimeout(() => {
+        mapRef.current?.resize();
+        redrawOverlay();
+      }, 0);
     }
-  }, [visible]);
+  }, [visible, redrawOverlay]);
+
+  // ---- cursor style ----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const canvas = map.getCanvas();
+    if (interaction.step === "idle" || interaction.step === "pin_set") {
+      canvas.style.cursor = "crosshair";
+    } else {
+      canvas.style.cursor = "";
+    }
+  }, [interaction.step]);
 
   // ---- click handler ----
   useEffect(() => {
@@ -88,22 +200,18 @@ export default function MapView({
     const map = mapRef.current;
     if (!map) return;
     if (interaction.step !== "pin_set") {
-      // clean up preview if it exists
       if (previewMarkerRef.current) {
         previewMarkerRef.current.remove();
         previewMarkerRef.current = null;
       }
-      if (previewCircleAdded.current) {
-        removeCircleLayers(map, "preview-circle", "preview-fill", "preview-stroke", "preview-label");
-        previewCircleAdded.current = false;
-      }
+      previewCircleRef.current = null;
+      redrawOverlay();
       return;
     }
 
     const onMove = (e: maplibregl.MapMouseEvent) => {
       const { lat, lng: lon } = e.lngLat;
       const r = Math.max(50, haversineDistance(interaction.lat, interaction.lon, lat, lon));
-      const circle = createCirclePolygon(interaction.lat, interaction.lon, r);
 
       if (!previewMarkerRef.current) {
         const el = document.createElement("div");
@@ -114,39 +222,17 @@ export default function MapView({
       } else {
         previewMarkerRef.current.setLngLat([lon, lat]);
       }
-      const labelEl = previewMarkerRef.current.getElement();
-      labelEl.textContent = formatDistance(r);
+      previewMarkerRef.current.getElement().textContent = formatDistance(r);
 
-      const src = map.getSource("preview-circle") as maplibregl.GeoJSONSource | undefined;
-      if (src) {
-        src.setData(circle);
-      } else if (map.isStyleLoaded()) {
-        map.addSource("preview-circle", { type: "geojson", data: circle });
-        map.addLayer({
-          id: "preview-fill",
-          type: "fill",
-          source: "preview-circle",
-          paint: { "fill-color": "#3b82f6", "fill-opacity": 0.08 },
-        });
-        map.addLayer({
-          id: "preview-stroke",
-          type: "line",
-          source: "preview-circle",
-          paint: {
-            "line-color": "#3b82f6",
-            "line-width": 1.5,
-            "line-dasharray": [4, 3],
-          },
-        });
-        previewCircleAdded.current = true;
-      }
+      previewCircleRef.current = { lat: interaction.lat, lon: interaction.lon, radiusM: r };
+      redrawOverlay();
     };
 
     map.on("mousemove", onMove);
     return () => {
       map.off("mousemove", onMove);
     };
-  }, [interaction]);
+  }, [interaction, redrawOverlay]);
 
   // ---- pin marker ----
   useEffect(() => {
@@ -165,42 +251,10 @@ export default function MapView({
     }
   }, [interaction]);
 
-  // ---- confirmed radius circle ----
+  // ---- draw confirmed circle ----
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const draw = () => {
-      removeCircleLayers(map, CIRCLE_SOURCE, CIRCLE_FILL, CIRCLE_LINE, RADIUS_LABEL);
-
-      if (interaction.step === "radius_set") {
-        const circle = createCirclePolygon(
-          interaction.lat,
-          interaction.lon,
-          interaction.radius_m,
-        );
-        map.addSource(CIRCLE_SOURCE, { type: "geojson", data: circle });
-        map.addLayer({
-          id: CIRCLE_FILL,
-          type: "fill",
-          source: CIRCLE_SOURCE,
-          paint: { "fill-color": "#3b82f6", "fill-opacity": 0.15 },
-        });
-        map.addLayer({
-          id: CIRCLE_LINE,
-          type: "line",
-          source: CIRCLE_SOURCE,
-          paint: { "line-color": "#2563eb", "line-width": 2 },
-        });
-      }
-    };
-
-    if (map.isStyleLoaded()) {
-      draw();
-    } else {
-      map.once("load", draw);
-    }
-  }, [interaction]);
+    redrawOverlay();
+  }, [interaction, redrawOverlay]);
 
   // ---- fly to pin on restore ----
   useEffect(() => {
@@ -216,7 +270,6 @@ export default function MapView({
       if (map.isStyleLoaded()) fly();
       else map.once("load", fly);
     }
-    // only on mount-like restore, not every interaction change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -230,15 +283,26 @@ export default function MapView({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
+      <canvas
+        ref={canvasOverlayRef}
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        style={{ zIndex: 1 }}
+      />
 
       {instruction && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-black/75 text-white px-5 py-2.5 rounded-full text-sm font-medium shadow-lg pointer-events-none select-none">
+        <div
+          className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/75 text-white px-5 py-2.5 rounded-full text-sm font-medium shadow-lg pointer-events-none select-none"
+          style={{ zIndex: 2 }}
+        >
           {instruction}
         </div>
       )}
 
       {interaction.step === "radius_set" && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
+        <div
+          className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2"
+          style={{ zIndex: 2 }}
+        >
           <span className="bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
             {formatDistance(interaction.radius_m)} radius
           </span>
@@ -254,19 +318,7 @@ export default function MapView({
   );
 }
 
-function removeCircleLayers(
-  map: maplibregl.Map,
-  source: string,
-  ...layers: string[]
-) {
-  for (const id of layers) {
-    if (map.getLayer(id)) map.removeLayer(id);
-  }
-  if (map.getSource(source)) map.removeSource(source);
-}
-
 function radiusToZoom(radiusM: number): number {
-  // rough heuristic: show the circle with some padding
   const km = radiusM / 1000;
   if (km < 0.2) return 16;
   if (km < 0.5) return 15;

@@ -17,21 +17,13 @@ export function haversineDistance(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export interface CircleFeature {
-  type: "Feature";
-  properties: Record<string, never>;
-  geometry: {
-    type: "Polygon";
-    coordinates: [number, number][][];
-  };
-}
-
-export function createCirclePolygon(
+/** Returns [lon, lat] pairs forming a closed circle for canvas projection. */
+export function createCirclePoints(
   lat: number,
   lon: number,
   radiusM: number,
   segments = 64,
-): CircleFeature {
+): [number, number][] {
   const coords: [number, number][] = [];
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * 2 * Math.PI;
@@ -42,11 +34,7 @@ export function createCirclePolygon(
       lon + (dx / (6371000 * Math.cos(toRad(lat)))) * (180 / Math.PI);
     coords.push([pLon, pLat]);
   }
-  return {
-    type: "Feature",
-    properties: {},
-    geometry: { type: "Polygon", coordinates: [coords] },
-  };
+  return coords;
 }
 
 export function formatDistance(meters: number): string {

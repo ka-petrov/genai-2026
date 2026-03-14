@@ -42,7 +42,7 @@ Core product behavior:
 ## 3) Target Stack
 
 - Frontend: React + TypeScript + Vite + React Router + MapLibre GL JS + Tailwind CSS.
-- Google APIs (frontend-only): Google Maps JavaScript API (Places Autocomplete / Geocoding) for address field on landing page.
+- Google APIs (server-side): Google Places API proxied through backend endpoints (`/api/geocode/autocomplete`, `/api/geocode/place`) to keep the API key off the client.
 - Backend: Python + FastAPI + Pydantic + `uv` for dependency/runtime management.
 - Cache/state: Redis for ephemeral context and request-level caching.
 - Data source layer: pluggable provider abstraction (`DataSource` base class), with Overpass as first implementation.
@@ -378,7 +378,7 @@ Responsibilities:
   - `MAP_STYLE_URL`
   - `REDIS_URL`
   - `REDIS_TTL_SECONDS`
-  - `VITE_GOOGLE_MAPS_API_KEY` (build-time, frontend-only, for Places Autocomplete on landing page)
+  - `GOOGLE_MAPS_API_KEY` (backend-only, for server-side Google Places API proxy)
   - provider timeouts/cache TTL
 - Provide VM deployment + verification runbook.
 
@@ -406,7 +406,7 @@ Responsibilities:
   1. **Hero prompt section** (top of page, visually prominent):
      - Headline (e.g., "Ask anything about a neighborhood").
      - **Question input field** (required) — text input or textarea. Placeholder examples to guide the user (e.g., "How walkable is this area?", "Is this good for families?").
-     - **Address input field** (optional) — uses Google Places Autocomplete (Geocoding API) for type-ahead suggestions. When the user selects a suggestion, the geocoded `lat`/`lon` is captured.
+     - **Address input field** (optional) — uses server-side Google Places Autocomplete proxy (`/api/geocode/autocomplete`) for type-ahead suggestions. When the user selects a suggestion, the geocoded `lat`/`lon` is fetched via `/api/geocode/place`.
      - Submit button / Enter key triggers navigation to `/map`.
   2. **Product info / feature sections** below the hero — concise marketing-style content explaining what GenGeo does (can be static content for MVP).
 - On submit, navigate to `/map` passing state via URL search params or React Router state:
@@ -417,12 +417,13 @@ Responsibilities:
   - If only `q` is present (no address): open map at default view, prompt user to drop a pin, keep question in chat input ready to send once context exists.
 - Nginx must be configured to serve `index.html` for all client-side routes (SPA fallback).
 
-Google Geocoding / Places Autocomplete integration:
-- Use the Google Maps JavaScript API `places` library with `Autocomplete` widget or `AutocompleteService`.
-- API key loaded from environment variable `VITE_GOOGLE_MAPS_API_KEY` (build-time).
-- Restrict API key to `Maps JavaScript API` and `Places API` with HTTP referrer restrictions.
-- On place selection, extract `geometry.location` (lat/lng) for routing to map page.
-- Graceful fallback if API key is missing or Places API fails: address field remains a plain text input (no autocomplete), and no geocoded coordinates are passed.
+Google Places Autocomplete integration (server-side proxy):
+- Backend exposes `GET /api/geocode/autocomplete?input=...` and `GET /api/geocode/place?place_id=...` that proxy to Google Places API.
+- API key (`GOOGLE_MAPS_API_KEY`) stored server-side only — never exposed to the browser.
+- Restrict API key to `Places API` with IP restrictions (backend server IP).
+- Frontend calls these endpoints with a debounced input and renders a custom dropdown.
+- On place selection, frontend calls `/api/geocode/place` to retrieve `lat`/`lon` for routing to map page.
+- Graceful fallback if API key is missing or backend is unavailable: address field remains a plain text input (no autocomplete), and no geocoded coordinates are passed.
 
 Independence strategy:
 - Fully buildable with a placeholder map page; only requires Google API key for autocomplete testing.

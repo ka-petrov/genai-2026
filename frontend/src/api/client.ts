@@ -80,6 +80,60 @@ export async function* streamChat(
 }
 
 // ---------------------------------------------------------------------------
+// Geocode (proxied through backend)
+// ---------------------------------------------------------------------------
+
+export interface PlacePrediction {
+  place_id: string;
+  description: string;
+}
+
+export interface PlaceDetails {
+  lat: number;
+  lon: number;
+  formatted_address: string | null;
+  name: string | null;
+}
+
+export async function geocodeAutocomplete(
+  input: string,
+  sessionToken?: string,
+): Promise<PlacePrediction[]> {
+  if (USE_MOCKS) return mockAutocomplete(input);
+
+  const params = new URLSearchParams({ input });
+  if (sessionToken) params.set("session_token", sessionToken);
+
+  const res = await fetch(`/api/geocode/autocomplete?${params}`);
+  if (!res.ok) return [];
+
+  const json = (await res.json()) as {
+    predictions: PlacePrediction[];
+    status: string;
+  };
+  return json.predictions;
+}
+
+export async function geocodePlaceDetails(
+  placeId: string,
+  sessionToken?: string,
+): Promise<PlaceDetails | null> {
+  if (USE_MOCKS) return mockPlaceDetails();
+
+  const params = new URLSearchParams({ place_id: placeId });
+  if (sessionToken) params.set("session_token", sessionToken);
+
+  const res = await fetch(`/api/geocode/place?${params}`);
+  if (!res.ok) return null;
+
+  const json = (await res.json()) as {
+    result: PlaceDetails | null;
+    status: string;
+  };
+  return json.result;
+}
+
+// ---------------------------------------------------------------------------
 // Mock implementations
 // ---------------------------------------------------------------------------
 
@@ -177,4 +231,24 @@ function pickMockAnswer(query: string): string {
     return "Based on the available data, this area has characteristics that typically correlate with a relatively safe and livable environment. The presence of 8 parks, 5 schools, and active commercial zones with 34 restaurants and 12 cafes suggests a well-used public realm, which generally deters antisocial behavior. However, our current data sources do not include crime statistics, noise measurements, or street lighting data. A more comprehensive safety assessment would require additional data layers beyond what OSM provides.";
 
   return `Based on the available data for this area, I can see a well-served neighborhood with 34 restaurants, 12 cafes, 6 supermarkets, and 8 parks within your selected radius. Transit connectivity is supported by 17 bus stops. The area has 5 schools and 23 bike parking spots, suggesting it serves both residential and commuter needs. This gives a generally positive picture of local amenities and services, though a more specific analysis would depend on your particular priorities and needs.`;
+}
+
+async function mockAutocomplete(input: string): Promise<PlacePrediction[]> {
+  await sleep(200);
+  if (input.length < 2) return [];
+  return [
+    { place_id: "mock_1", description: `${input} - Downtown` },
+    { place_id: "mock_2", description: `${input} - Suburbs` },
+    { place_id: "mock_3", description: `${input} - Waterfront` },
+  ];
+}
+
+async function mockPlaceDetails(): Promise<PlaceDetails> {
+  await sleep(200);
+  return {
+    lat: 43.6532,
+    lon: -79.3832,
+    formatted_address: "Toronto, ON, Canada",
+    name: "Toronto",
+  };
 }

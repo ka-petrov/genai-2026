@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { PinIcon } from "../../ds";
-
-const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+import {
+  geocodeAutocomplete,
+  geocodePlaceDetails,
+  type PlacePrediction,
+} from "../../api/client";
 
 interface Props {
   value: string;
@@ -9,77 +12,112 @@ interface Props {
   onPlaceSelect: (coords: { lat: number; lon: number } | null) => void;
 }
 
-let scriptLoadPromise: Promise<void> | null = null;
-
-function loadGoogleMapsScript(): Promise<void> {
-  if (scriptLoadPromise) return scriptLoadPromise;
-  if (window.google?.maps?.places) return Promise.resolve();
-
-  scriptLoadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&libraries=places`;
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Google Maps"));
-    document.head.appendChild(script);
-  });
-  return scriptLoadPromise;
-}
-
 export default function AddressAutocomplete({
   value,
   onChange,
   onPlaceSelect,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [apiReady, setApiReady] = useState(false);
+  const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const sessionTokenRef = useRef(crypto.randomUUID());
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const fetchPredictions = useCallback(
+    (input: string) => {
+      clearTimeout(debounceRef.current);
+      if (input.length < 2) {
+        setPredictions([]);
+        setOpen(false);
+        return;
+      }
+      debounceRef.current = setTimeout(async () => {
+        setLoading(true);
+        const results = await geocodeAutocomplete(
+          input,
+          sessionTokenRef.current,
+        );
+        setPredictions(results);
+        setOpen(results.length > 0);
+        setLoading(false);
+      }, 300);
+    },
+    [],
+  );
+
+  const handleSelect = useCallback(
+    async (prediction: PlacePrediction) => {
+      onChange(prediction.description);
+      setOpen(false);
+      setPredictions([]);
+
+      const details = await geocodePlaceDetails(
+        prediction.place_id,
+        sessionTokenRef.current,
+      );
+      // Reset session token after a complete autocomplete+details cycle
+      sessionTokenRef.current = crypto.randomUUID();
+
+      if (details) {
+        onPlaceSelect({ lat: details.lat, lon: details.lon });
+      }
+    },
+    [onChange, onPlaceSelect],
+  );
 
   useEffect(() => {
-    if (!GOOGLE_API_KEY) return;
-    loadGoogleMapsScript()
-      .then(() => setApiReady(true))
-      .catch(() => {});
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handlePlaceChanged = useCallback(() => {
-    const ac = autocompleteRef.current;
-    if (!ac) return;
-    const place = ac.getPlace();
-    if (place?.geometry?.location) {
-      const lat = place.geometry.location.lat();
-      const lon = place.geometry.location.lng();
-      onChange(place.formatted_address ?? place.name ?? value);
-      onPlaceSelect({ lat, lon });
-    }
-  }, [onChange, onPlaceSelect, value]);
-
-  useEffect(() => {
-    if (!apiReady || !inputRef.current || autocompleteRef.current) return;
-    const ac = new google.maps.places.Autocomplete(inputRef.current, {
-      types: ["geocode"],
-      fields: ["geometry", "formatted_address", "name"],
-    });
-    ac.addListener("place_changed", handlePlaceChanged);
-    autocompleteRef.current = ac;
-  }, [apiReady, handlePlaceChanged]);
-
   return (
-    <div className="relative">
+    <div ref={wrapperRef} className="relative">
       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-muted pointer-events-none">
         <PinIcon className="w-4 h-4" />
       </div>
       <input
-        ref={inputRef}
         type="text"
         value={value}
         onChange={(e) => {
           onChange(e.target.value);
           onPlaceSelect(null);
+          fetchPredictions(e.target.value);
+        }}
+        onFocus={() => {
+          if (predictions.length > 0) setOpen(true);
         }}
         placeholder="Enter an address (optional)"
         className="w-full bg-surface-sunken border border-border-strong rounded-xl pl-10 pr-4 py-3 text-sm text-fg-secondary placeholder:text-fg-faint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-transparent transition-all"
       />
+
+      {open && predictions.length > 0 && (
+        <ul className="absolute z-50 mt-1 w-full rounded-xl border border-border-default bg-surface-raised shadow-lg overflow-hidden">
+          {predictions.map((p) => (
+            <li key={p.place_id}>
+              <button
+                type="button"
+                className="w-full px-4 py-2.5 text-left text-sm text-fg hover:bg-surface-sunken transition-colors cursor-pointer"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleSelect(p)}
+              >
+                {p.description}
+              </button>
+            </li>
+          ))}
+          {loading && (
+            <li className="px-4 py-2 text-xs text-fg-muted">Loading...</li>
+          )}
+        </ul>
+      )}
     </div>
   );
 }

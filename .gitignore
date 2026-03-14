@@ -29,3 +29,6 @@ Thumbs.db
 # Redis
 redis/data/
 dump.rdb
+
+# Examples (local scratch scripts)
+examples/

@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     llm_model_id: str = "google/gemini-2.5-flash-preview"
 
+    google_maps_api_key: str = ""
+
     overpass_url: str = "https://overpass-api.de/api/interpreter"
     overpass_timeout: float = 30.0
 

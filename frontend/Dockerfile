@@ -5,7 +5,7 @@ RUN npm ci
 COPY . .
 ARG VITE_USE_MOCKS=false
 ENV VITE_USE_MOCKS=$VITE_USE_MOCKS
-RUN npm run build
+RUN npm run build:force
 
 FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf

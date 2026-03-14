@@ -22,11 +22,12 @@ Core product behavior:
 - Streaming assistant output to frontend (incremental text/tokens).
 - Final structured assistant payload (`answer`, `reasoning_summary`, `evidence`, `limitations`, `confidence`).
 - Browser-side chat history persistence via `sessionStorage`.
+- Redis-backed ephemeral cache/context store for backend state.
 - Containerized deployment via Docker Compose + Nginx.
 
 ### Out of scope (MVP)
 - Authentication/authorization.
-- Persistent backend database.
+- Persistent product database (beyond ephemeral Redis cache).
 - Background jobs/queues.
 - Vector DB/RAG over external docs.
 - Full geocoding/search infrastructure.
@@ -35,6 +36,7 @@ Core product behavior:
 
 - Frontend: React + TypeScript + Vite + MapLibre GL JS + Tailwind CSS.
 - Backend: Python + FastAPI + Pydantic + `uv` for dependency/runtime management.
+- Cache/state: Redis for ephemeral context and request-level caching.
 - Data source layer: pluggable provider abstraction (`DataSource` base class), with Overpass as first implementation.
 - LLM: OpenRouter API with model ID from app config; structured outputs enforced for compatible models.
 - Deployment: Docker + Docker Compose + Nginx on one VM (e.g., DigitalOcean droplet).
@@ -46,6 +48,7 @@ Browser SPA
   -> Nginx
       -> / (frontend static files + MapLibre app)
       -> /api/* (FastAPI)
+              -> Redis (context snapshots + TTL cache)
               -> DataSourceRegistry
                     -> OverpassDataSource (now)
                     -> GooglePlacesDataSource (future)
@@ -130,6 +133,42 @@ Response:
   }
 }
 ```
+
+Context lifecycle notes:
+- Backend persists `context_id -> region_profile + map_features + metadata` in Redis with TTL.
+- `POST /api/chat/stream` resolves `context_id` from Redis and injects that context into the LLM prompt.
+- If the key is missing/expired, backend returns typed `CONTEXT_NOT_FOUND` and frontend recreates context.
+
+### Redis Key Schema (Ephemeral/Cache Contract)
+
+Use versioned keys (`v1`) so schema changes are explicit.
+
+Key patterns:
+- `v1:ctx:{context_id}`
+  - Purpose: canonical chat context for a selected region.
+  - Value (JSON): `{ region_spec, region_profile, map_features, data_sources, created_at }`
+  - TTL: `REDIS_CONTEXT_TTL_SECONDS` (recommended default: 3600).
+- `v1:region:{region_hash}`
+  - Purpose: reusable region snapshot cache for repeated same `(lat, lon, radius)` requests.
+  - `region_hash`: stable hash of normalized `RegionSpec` (rounded coordinates + radius).
+  - Value (JSON): `{ region_profile, map_features, data_sources, generated_at }`
+  - TTL: `REDIS_REGION_TTL_SECONDS` (recommended default: 900).
+- `v1:chat:last_model:{context_id}` (optional)
+  - Purpose: store last effective model ID used in thread for analytics/debug.
+  - Value: string model id.
+  - TTL: same as context TTL.
+
+Operational rules:
+- `POST /api/contexts`:
+  - compute `region_hash`, try `v1:region:{region_hash}` first;
+  - on hit, mint new `context_id` and write `v1:ctx:{context_id}` from cached snapshot;
+  - on miss, fetch providers, write both `v1:region:{region_hash}` and `v1:ctx:{context_id}`.
+- `POST /api/chat/stream`:
+  - read `v1:ctx:{context_id}` only (single source of truth for LLM grounding context).
+- Never trust client-provided region profile for prompt grounding.
+- Expired/missing context key -> `CONTEXT_NOT_FOUND`.
+- Redis connectivity failure -> `CACHE_UNAVAILABLE` (retryable).
+- Include key prefix and TTLs in config for environment-level tuning.
 
 ### `POST /api/chat/stream`
 Streams one assistant turn for a multi-turn chat.
@@ -230,7 +269,9 @@ Responsibilities:
   - `pyproject.toml`
   - `uv.lock`
   - `uv sync`, `uv run ...`
-- Add lightweight in-memory cache for context snapshots.
+- Implement Redis-backed ephemeral storage:
+  - context snapshots by `context_id` with TTL
+  - optional request/result cache keys for repeated region queries
 
 Independence strategy:
 - Can integrate mocked `DataSourceRegistry` and mocked `LLMClient` first.
@@ -244,6 +285,7 @@ Acceptance criteria:
 - Streaming endpoint emits valid SSE lifecycle events.
 - Schema validation catches malformed input and model output.
 - `uv`-based local/dev/container workflow is documented and repeatable.
+- Context retrieval for chat is Redis-backed (no process-local state dependency).
 
 ## Part C: Pluggable Data Source Layer + Region Profiling
 
@@ -311,6 +353,7 @@ Owner profile: infra/devops agent.
 
 Responsibilities:
 - Compose services: `frontend`, `backend`, `nginx`.
+- Add `redis` service for ephemeral/cache storage.
 - Nginx routing:
   - `/` -> frontend static assets
   - `/api/` -> backend (including SSE streaming support)
@@ -320,6 +363,8 @@ Responsibilities:
   - `OPENROUTER_API_KEY`
   - `LLM_MODEL_ID`
   - `MAP_STYLE_URL`
+  - `REDIS_URL`
+  - `REDIS_TTL_SECONDS`
   - provider timeouts/cache TTL
 - Provide VM deployment + verification runbook.
 
@@ -334,6 +379,7 @@ Acceptance criteria:
 - `docker compose up --build` boots complete stack.
 - SSE chat streaming works through Nginx in local/prod topology.
 - Single-origin setup avoids CORS complexity.
+- Redis connectivity/TTL behavior is validated end-to-end.
 
 ## 7) Integration Points and Ordering (No Time Mapping)
 
@@ -360,11 +406,14 @@ Integration checkpoints:
 - Security: API keys server-side only; model/provider keys never exposed to frontend.
 - Observability: request IDs and basic structured logs for context creation and chat turns.
 - Compatibility: SSE behavior validated behind Nginx proxy.
+- State handling: backend context/chat cache must be externalized in Redis, not process memory.
 
 ## 9) Risks and Mitigations
 
 - Overpass latency/rate limits:
-  - keep query scope narrow, cache context snapshots, allow stale fallback for same region.
+  - keep query scope narrow, cache context snapshots in Redis, allow stale fallback for same region.
+- Redis unavailable or evicted keys:
+  - typed `CONTEXT_NOT_FOUND`/`CACHE_UNAVAILABLE` responses + FE re-create context flow + health checks.
 - Structured output support differences across OpenRouter models:
   - maintain allowlist and compatibility checks; fail fast on unsupported model.
 - Streaming interruptions:
@@ -404,6 +453,12 @@ project-root/
       profile_aggregator.py
       prompt_builder.py
       llm_client.py
+      cache/
+        redis_client.py
+        context_store.py
+        cache_keys.py
+  redis/
+    redis.conf
   nginx/
     default.conf
 ```
@@ -411,9 +466,9 @@ project-root/
 ## 11) Handoff Summary by Agent Type
 
 - Frontend agent: owns map + multi-turn streaming UI + `sessionStorage` thread persistence.
-- Backend agent: owns FastAPI contracts, SSE orchestration, schema enforcement, and `uv` dependency management.
+- Backend agent: owns FastAPI contracts, SSE orchestration, schema enforcement, `uv` dependency management, and Redis context/cache integration.
 - Data/geospatial agent: owns `DataSource` abstraction, Overpass provider, and profile aggregation.
 - LLM agent: owns OpenRouter integration, model config, and structured-output-compliant streamed turns.
-- Infra agent: owns Compose/Nginx runtime, SSE-safe proxy behavior, and deployment reproducibility.
+- Infra agent: owns Compose/Nginx/Redis runtime, SSE-safe proxy behavior, and deployment reproducibility.
 
 Each part is intentionally decoupled by typed contracts so teams can develop in parallel and merge with low rework risk.

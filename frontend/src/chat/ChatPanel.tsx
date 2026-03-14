@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { ChatMessage, RegionSpec } from "../types";
 import { formatDistance } from "../map/geo";
 import {
@@ -95,8 +97,10 @@ export default function ChatPanel({
 
         {isStreaming && streamingText && (
           <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-2xl rounded-bl-md px-4 py-3 bg-bubble-assistant text-bubble-assistant-text text-sm leading-relaxed whitespace-pre-wrap">
-              {streamingText}
+            <div className="max-w-[85%] rounded-2xl rounded-bl-md px-4 py-3 bg-bubble-assistant text-bubble-assistant-text text-[15px] leading-relaxed chat-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {streamingText}
+              </ReactMarkdown>
               <span className="inline-block w-1.5 h-4 ml-0.5 bg-accent rounded-sm animate-pulse align-text-bottom" />
             </div>
           </div>
@@ -162,13 +166,19 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+        className={`max-w-[85%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed ${
           isUser
-            ? "bg-bubble-user text-bubble-user-text rounded-br-md"
-            : "bg-bubble-assistant text-bubble-assistant-text rounded-bl-md"
+            ? "bg-bubble-user text-bubble-user-text rounded-br-md whitespace-pre-wrap"
+            : "bg-bubble-assistant text-bubble-assistant-text rounded-bl-md chat-markdown"
         }`}
       >
-        {message.content}
+        {isUser ? (
+          message.content
+        ) : (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {message.content}
+          </ReactMarkdown>
+        )}
       </div>
     </div>
   );

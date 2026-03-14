@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import MapView from "../map/MapView";
 import ChatPanel from "../chat/ChatPanel";
 import { createContext, streamChat } from "../api/client";
@@ -33,7 +33,7 @@ export default function MapPage() {
   const activeThread = useActiveThread();
 
   const landingHandled = useRef(false);
-  const pendingQuestion = useRef<string | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 
   // ---- context creation ----
   const doCreateContext = useCallback(
@@ -75,13 +75,12 @@ export default function MapPage() {
     const { question, coords } = landing;
 
     if (contextId) {
-      // Already have an active session — just queue the question
-      pendingQuestion.current = question;
+      setPendingQuestion(question);
       clearLanding();
       return;
     }
 
-    pendingQuestion.current = question;
+    setPendingQuestion(question);
 
     if (coords) {
       void doCreateContext(coords.lat, coords.lon, DEFAULT_RADIUS);
@@ -144,17 +143,17 @@ export default function MapPage() {
   // ---- auto-send pending question once context is ready ----
   useEffect(() => {
     if (
-      !pendingQuestion.current ||
+      !pendingQuestion ||
       !contextId ||
       !activeThread ||
       isStreaming ||
       isCreatingContext
     )
       return;
-    const q = pendingQuestion.current;
-    pendingQuestion.current = null;
+    const q = pendingQuestion;
+    setPendingQuestion(null);
     void handleSend(q);
-  }, [contextId, activeThread, isStreaming, isCreatingContext, handleSend]);
+  }, [pendingQuestion, contextId, activeThread, isStreaming, isCreatingContext, handleSend]);
 
   // ---- map handlers ----
   const handlePinSet = useCallback(
@@ -223,7 +222,7 @@ export default function MapPage() {
           contextReady={contextId !== null}
           isCreatingContext={isCreatingContext}
           region={region}
-          initialQuestion={pendingQuestion.current ?? undefined}
+          initialQuestion={pendingQuestion ?? undefined}
         />
         {error && (
           <div className="px-4 py-2 bg-status-error-subtle border-t border-status-error/30 text-status-error-text text-sm">

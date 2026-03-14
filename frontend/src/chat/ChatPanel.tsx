@@ -39,6 +39,10 @@ export default function ChatPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    if (initialQuestion) setDraft(initialQuestion);
+  }, [initialQuestion]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, streamingText]);
 

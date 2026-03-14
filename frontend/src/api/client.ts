@@ -13,8 +13,7 @@ export interface StreamEvent {
   data: Record<string, unknown>;
 }
 
-const USE_MOCKS =
-  (import.meta.env.VITE_USE_MOCKS as string | undefined) !== "false";
+const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== "false";
 
 export async function createContext(
   region: RegionSpec,
